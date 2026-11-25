@@ -5,6 +5,7 @@ import Order from "@/models/Order";
 import Campaign from "@/models/Campaign";
 import DailyMetric from "@/models/DailyMetric";
 import { resolveDateRange } from "@/lib/date-filters";
+import { evaluateCampaignDecisions } from "@/lib/campaign-decision-engine";
 import ShopifyAppClient from "@/components/ShopifyAppClient";
 
 export const dynamic = "force-dynamic";
@@ -123,6 +124,15 @@ export default async function EmbeddedPage(props: {
   const totalDailyBudget = activeCampaigns.reduce((sum: number, c: any) => sum + (c.dailyBudget || 0), 0);
   const totalDailyBudgetWithGst = Math.round(totalDailyBudget * 1.18);
 
+  // 4. Evaluate Campaign Decision Intelligence SOP for this brand
+  let decisions: any[] = [];
+  try {
+    const decisionResult = await evaluateCampaignDecisions(String(brand._id));
+    decisions = decisionResult?.allCards || [];
+  } catch (decErr: any) {
+    console.warn("[Shopify Embedded] Decision engine warning:", decErr?.message);
+  }
+
   const serializedBrand = {
     _id: brand._id.toString(),
     name: brand.name,
@@ -187,8 +197,11 @@ export default async function EmbeddedPage(props: {
           roas: c.roas || 0,
           cpa: c.cpa || 0,
           clicks: c.clicks || 0,
-          ctr: c.ctr || 0,
+          impressions: c.impressions || 0,
+          cpc: c.cpc || (c.clicks > 0 ? Number(((c.spend || 0) / c.clicks).toFixed(1)) : 0),
+          ctr: c.ctr || (c.impressions > 0 ? Number((((c.clicks || 0) / c.impressions) * 100).toFixed(2)) : 0),
         }))}
+        decisions={decisions}
         recentOrders={recentOrders}
       />
     </Suspense>

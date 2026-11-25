@@ -135,7 +135,24 @@ export async function GET(req: NextRequest) {
     await brand.save();
   }
 
-  // 4. Redirect merchant into embedded app experience inside Shopify Admin
+  // 4. Trigger Background 60-Day Order Sync, Product Sync & Webhook Registration
+  try {
+    const { syncShopifyOrders, syncShopifyProducts, registerShopifyWebhooks } = await import("@/lib/sync-engine");
+    const appUrl = process.env.SHOPIFY_APP_URL || "https://meta-intelligence-app.vercel.app";
+    syncShopifyOrders(String(brand._id), 60).catch((e: any) =>
+      console.warn("[Shopify OAuth] Orders sync warning:", e?.message)
+    );
+    syncShopifyProducts(String(brand._id)).catch((e: any) =>
+      console.warn("[Shopify OAuth] Products sync warning:", e?.message)
+    );
+    registerShopifyWebhooks(String(brand._id), `${appUrl}/api/webhooks/shopify/orders`).catch((e: any) =>
+      console.warn("[Shopify OAuth] Webhook registration warning:", e?.message)
+    );
+  } catch (err: any) {
+    console.warn("[Shopify OAuth] Background sync engine warning:", err?.message);
+  }
+
+  // 5. Redirect merchant into embedded app experience inside Shopify Admin
   const embeddedUrl = new URL(`/embedded`, req.url);
   embeddedUrl.searchParams.set("shop", cleanShop);
   if (host) embeddedUrl.searchParams.set("host", host);
