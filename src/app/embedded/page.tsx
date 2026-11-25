@@ -4,6 +4,7 @@ import Brand from "@/models/Brand";
 import Order from "@/models/Order";
 import Campaign from "@/models/Campaign";
 import DailyMetric from "@/models/DailyMetric";
+import { resolveDateRange } from "@/lib/date-filters";
 import ShopifyAppClient from "@/components/ShopifyAppClient";
 
 export const dynamic = "force-dynamic";
@@ -76,26 +77,16 @@ export default async function EmbeddedPage(props: {
     );
   }
 
-  // Determine date range in IST
-  const now = new Date();
-  let daysAgo = 7;
-  if (rangeParam === "today") daysAgo = 0;
-  else if (rangeParam === "yesterday") daysAgo = 1;
-  else if (rangeParam === "this_week") daysAgo = 7;
-  else if (rangeParam === "this_month") daysAgo = 30;
-  else if (rangeParam === "last_30_days") daysAgo = 30;
+  // Determine exact IST (Asia/Kolkata) date range
+  const dateRange = resolveDateRange(rangeParam);
 
-  const startDate = new Date();
-  startDate.setDate(now.getDate() - daysAgo);
-  startDate.setHours(0, 0, 0, 0);
-
-  // 1. Fetch Orders (Lean query selecting only KPI fields)
+  // 1. Fetch Orders (Lean query selecting only KPI & display fields)
   const orders = await Order.find({
     brandId: brand._id,
     cancelledAt: null,
-    orderDate: { $gte: startDate },
+    orderDate: { $gte: dateRange.startDate, $lte: dateRange.endDate },
   })
-    .select("total orderDate financialStatus orderNumber customer")
+    .select("total orderDate financialStatus orderNumber customerName")
     .sort({ orderDate: -1 })
     .lean();
 
@@ -113,11 +104,10 @@ export default async function EmbeddedPage(props: {
     else codOrders++;
   });
 
-  // 2. Fetch Daily Metrics for Ad Spend
-  const dateStr = startDate.toISOString().split("T")[0];
+  // 2. Fetch Daily Metrics for Ad Spend using IST date strings
   const dailyMetrics = await DailyMetric.find({
     brandId: brand._id,
-    date: { $gte: dateStr },
+    date: { $gte: dateRange.startDateStr, $lte: dateRange.endDateStr },
   }).lean();
 
   const baseSpend = dailyMetrics.reduce((sum: number, m: any) => sum + (m.spend || 0), 0);
@@ -155,13 +145,11 @@ export default async function EmbeddedPage(props: {
   const recentOrders = orders.slice(0, 8).map((o: any) => ({
     id: o._id.toString(),
     orderNumber: o.orderNumber || "Order",
-    customer: o.customer?.firstName
-      ? `${o.customer.firstName} ${o.customer.lastName || ""}`.trim()
-      : "Customer",
-    city: o.shippingAddress?.city || "India",
+    customer: o.customerName || "Customer",
+    city: "India",
     total: o.total || 0,
     paymentStatus: o.financialStatus || "pending",
-    date: o.orderDate ? new Date(o.orderDate).toLocaleDateString("en-IN") : "",
+    date: o.orderDate ? new Date(o.orderDate).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" }) : "",
   }));
 
   return (
