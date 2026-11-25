@@ -2,7 +2,7 @@
 client_id = "b5a43396667708536cddc4e977f4dd3e"
 name = "Tameta Decision Intelligence"
 handle = "tameta-decision-intelligence"
-application_url = "https://brands.tameta.tech"
+application_url = "https://meta-intelligence-app.vercel.app"
 embedded = true
 
 [build]
@@ -14,8 +14,8 @@ scopes = "read_orders,read_products,read_all_orders"
 
 [auth]
 redirect_urls = [
-  "https://brands.tameta.tech/api/shopify/auth/callback",
-  "https://brands.tameta.tech/api/auth/callback"
+  "https://meta-intelligence-app.vercel.app/api/auth/callback",
+  "https://meta-intelligence-app.vercel.app/api/billing/callback"
 ]
 
 [webhooks]
